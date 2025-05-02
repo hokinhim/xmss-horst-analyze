@@ -29,6 +29,6 @@
 
 ### Установка
 ```bash
-git clone https://github.com/yourusername/ecsp-coursework.git
-cd ecsp-coursework
+git clone https://github.com/hokinhim/xmss-horst-analyze.git
+cd xmss-horst-analyze
 pip install -r requirements.txt
