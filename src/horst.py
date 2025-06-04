@@ -27,6 +27,14 @@ class Horst:
         self.k = k
         self.t = 1 << height  # Total leaf count = 2^h
 
+        # Validate parameters
+        if height <= 0:
+            raise ValueError("Tree height must be positive")
+        if k <= 0:
+            raise ValueError("k must be positive")
+        if k > self.t:
+            raise ValueError(f"k ({k}) cannot exceed total leaves ({self.t})")
+
     class Signature:
         """
         Represents a HORST signature, containing k leaf secrets and their authentication paths.
@@ -308,9 +316,22 @@ def main():
     parser = argparse.ArgumentParser(description="HORST file signer/verifier")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    # Общие аргументы для height и k
+    base_parser = argparse.ArgumentParser(add_help=False)
+    base_parser.add_argument(
+        "--height", type=int, default=16,
+        help="Height of Merkle tree (default: 16)"
+    )
+    base_parser.add_argument(
+        "--k", type=int, default=32,
+        help="Number of leaves to reveal (default: 32)"
+    )
+
     # Subparser for "sign" command
     sign_parser = subparsers.add_parser(
-        "sign", help="Sign a file and bundle its signature + public key"
+        "sign",
+        help="Sign a file and bundle its signature + public key",
+        parents=[base_parser]
     )
     sign_parser.add_argument(
         "file", help="Path to the file to sign"
@@ -323,7 +344,9 @@ def main():
 
     # Subparser for "verify" command
     verify_parser = subparsers.add_parser(
-        "verify", help="Verify a file against a signature+key bundle"
+        "verify",
+        help="Verify a file against a signature+key bundle",
+        parents=[base_parser]
     )
     verify_parser.add_argument(
         "file", help="Path to the file to verify"
@@ -334,7 +357,12 @@ def main():
 
     args = parser.parse_args()
 
-    horst = Horst()  # Use default height=16, k=32
+    try:
+        # Создаём экземпляр Horst с пользовательскими параметрами
+        horst = Horst(height=args.height, k=args.k)
+    except ValueError as e:
+        print(f"Error: {e}")
+        return
 
     if args.command == "sign":
         input_path = args.file
@@ -357,6 +385,7 @@ def main():
         # Save public key + signature into a single bundle
         Horst.save_signature_and_key(pk, signature, bundle_path)
         print(f"Signed bundle saved to: {bundle_path}")
+        print(f"Used parameters: height={args.height}, k={args.k}")
 
     elif args.command == "verify":
         input_path = args.file
@@ -371,7 +400,8 @@ def main():
 
         # Verify using the bundle (loads public key + signature)
         result = horst.verify_file_with_bundle(input_path, bundle_path)
-        print(result)  # True или False
+        print(f"Verification result: {result}")
+        print(f"Used parameters: height={args.height}, k={args.k}")
 
 
 if __name__ == "__main__":

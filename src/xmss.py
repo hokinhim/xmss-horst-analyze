@@ -3,7 +3,9 @@ import hashlib
 import hmac
 import secrets
 import json
+import argparse
 from typing import List
+
 
 class Address:
     def __init__(self):
@@ -47,6 +49,7 @@ class Address:
 
     def set_key_and_mask(self, val: int):
         self.key_and_mask = val
+
 
 class WOTSPlus:
     def __init__(self, n=32, w=16):
@@ -202,12 +205,12 @@ class MerkleTree:
 
 
 class XMSS:
-    def __init__(self, height=4, n=32, private_key_path="private_key.json", public_key_path="public_key.json"):
+    def __init__(self, height=4, n=32, w=16, private_key_path="private_key.json", public_key_path="public_key.json"):
         self.height = height
         self.n = n
         self.private_key_path = private_key_path
         self.public_key_path = public_key_path
-        self.wots = WOTSPlus(n=self.n)
+        self.wots = WOTSPlus(n=self.n, w=w)
         self.max_signatures = 2 ** self.height
 
         if os.path.exists(self.private_key_path):
@@ -299,7 +302,7 @@ class XMSS:
         leaf_pks = []
         addr = Address()
         addr.set_type(0)
-        for i in range(2**self.pk["height"]):
+        for i in range(2 ** self.pk["height"]):
             addr.set_ots(i)
             pk = self.wots.wots_gen_pk(self.sk["SK_SEED"], self.pk["pub_seed"], addr)
             compressed_pk = self.wots.pk_compress(pk)
@@ -334,7 +337,7 @@ class XMSS:
 
     def verify(self, data: bytes, sig: bytes) -> bool:
         idx = int.from_bytes(sig[:4], "big")
-        randomness = sig[4:4+self.n]
+        randomness = sig[4:4 + self.n]
         msg_hash = self.h(randomness + self.pk["root"] + data)
 
         addr = Address()
@@ -342,10 +345,10 @@ class XMSS:
         addr.set_ots(idx)
 
         wots_len = self.wots.len
-        wots_sig_bytes = sig[4+self.n:4+self.n + wots_len*self.n]
-        auth_path_bytes = sig[4+self.n + wots_len*self.n:]
+        wots_sig_bytes = sig[4 + self.n:4 + self.n + wots_len * self.n]
+        auth_path_bytes = sig[4 + self.n + wots_len * self.n:]
 
-        wots_sig = [wots_sig_bytes[i*self.n:(i+1)*self.n] for i in range(wots_len)]
+        wots_sig = [wots_sig_bytes[i * self.n:(i + 1) * self.n] for i in range(wots_len)]
         pk_from_sig = self.wots.wots_pk_from_sig(wots_sig, msg_hash, self.pk["pub_seed"], addr)
         leaf = self.wots.pk_compress(pk_from_sig)
 
@@ -353,7 +356,7 @@ class XMSS:
         idx_leaf = idx
         for i in range(self.pk["height"]):
             start = i * self.n
-            node_at_level = auth_path_bytes[start:start+self.n]
+            node_at_level = auth_path_bytes[start:start + self.n]
             if idx_leaf % 2 == 0:
                 node = hashlib.sha256(node + node_at_level).digest()
             else:
@@ -380,22 +383,27 @@ class XMSS:
         else:
             print("Подпись недействительна.")
 
-def main():
-    xmss = XMSS(height=4)  # 16 листьев
-    print("\nВыберите действие:")
-    print("1 — Подписать файл")
-    print("2 — Проверить подпись")
-    choice = input("Ваш выбор (1/2): ").strip()
 
-    if choice == '1':
-        path = input("Введите путь к файлу для подписи: ").strip()
-        xmss.sign_file(path)
-    elif choice == '2':
-        path = input("Введите путь к файлу: ").strip()
-        sig_path = input("Введите путь к файлу подписи (.sig): ").strip()
-        xmss.verify_file(path, sig_path)
-    else:
-        print("Неверный выбор.")
+def main():
+    parser = argparse.ArgumentParser(description="XMSS Command-line Tool")
+    parser.add_argument("--height", type=int, default=4, help="Height of Merkle tree (default: 4)")
+    parser.add_argument("--n", type=int, default=32, help="Hash output length in bytes (default: 32)")
+    parser.add_argument("--w", type=int, default=16, help="Winternitz parameter (default: 16)")
+    parser.add_argument("--action", choices=["sign", "verify"], required=True, help="Action to perform")
+    parser.add_argument("--file", required=True, help="Path to the input file")
+    parser.add_argument("--sig", help="Path to signature file (required for verify)")
+    args = parser.parse_args()
+
+    xmss = XMSS(height=args.height, n=args.n, w=args.w)
+
+    if args.action == 'sign':
+        xmss.sign_file(args.file)
+    elif args.action == 'verify':
+        if not args.sig:
+            print("Не указан файл подписи (--sig).")
+        else:
+            xmss.verify_file(args.file, args.sig)
+
 
 if __name__ == "__main__":
     main()
