@@ -1,0 +1,3 @@
+python test_horst.py --time_vs_size --time_vs_param --memory_vs_param
+python xmss_benchmark.py --time_vs_size --time_vs_param --memory_vs_param
+py visualization.py
