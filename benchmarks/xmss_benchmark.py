@@ -4,7 +4,7 @@ import csv
 import argparse
 import tempfile
 import subprocess
-import psutil
+
 
 XMSS_SCRIPT = "..\\src\\xmss.py"
 KEY_FILES = ["private_key.json", "public_key.json"]
@@ -14,13 +14,16 @@ SIZES = [
     1024,
     1024 ** 2,
     32 * 1024 ** 2,
+    64 * 1024 ** 2,
+    128 * 1024 ** 2,
+    256 * 1024 ** 2,
     512 * 1024 ** 2,
     1024 ** 3,
-    5 * 1024 ** 3
 ]
 
 HEIGHTS = [4, 6, 8, 10]  # умеренно, иначе дерево очень большое
 WS = [4, 8, 16, 32]
+
 
 def test_memory_vs_param(output_csv):
     with tempfile.NamedTemporaryFile(delete=False) as tmpfile:
@@ -52,6 +55,7 @@ def test_memory_vs_param(output_csv):
         writer.writerow(["Height", "W", "MaxMemoryMB"])
         writer.writerows(results)
 
+
 def measure_mem_and_time(cmd):
     start = time.time()
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -75,16 +79,31 @@ def measure_mem_and_time(cmd):
     elapsed = end - start
     return elapsed, max_rss / (1024 * 1024)  # время, память в MB
 
+
 def cleanup_keys():
     for f in KEY_FILES:
         if os.path.exists(f):
             os.remove(f)
 
-def generate_file(path, size):
+
+def generate_file(path: str, size: int) -> None:
+    """
+    Generate a random binary file of given size.
+    :param path: File path to write.
+    :param size: Size in bytes.
+    :return: None.
+    """
     with open(path, "wb") as f:
         f.write(os.urandom(size))
 
-def run_command(cmd):
+
+def run_command(cmd: list) -> float:
+    """
+    Run a subprocess command and measure its execution time.
+    :param cmd: List of command arguments.
+    :return: Elapsed time in seconds.
+    :raises RuntimeError: If the command fails.
+    """
     start = time.time()
     result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     end = time.time()
@@ -92,7 +111,6 @@ def run_command(cmd):
         raise RuntimeError(f"Command failed: {' '.join(cmd)}\n{result.stderr.decode()}")
     return end - start
 
-# === Тестирование ===
 
 def test_time_vs_size(output_csv):
     results = []
@@ -131,6 +149,7 @@ def test_time_vs_size(output_csv):
         writer = csv.writer(f)
         writer.writerow(["FileSizeBytes", "SignTimeSeconds", "VerifyTimeSeconds"])
         writer.writerows(results)
+
 
 def test_time_vs_param(output_csv):
     with tempfile.NamedTemporaryFile(delete=False) as tmpfile:
@@ -176,24 +195,23 @@ def test_time_vs_param(output_csv):
         writer.writerow(["Height", "W", "SignTimeSeconds", "VerifyTimeSeconds"])
         writer.writerows(results)
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Benchmark XMSS Signature")
     parser.add_argument("--time_vs_size", action="store_true", help="Benchmark vs file size")
     parser.add_argument("--time_vs_param", action="store_true", help="Benchmark vs height/w")
     parser.add_argument("--memory_vs_param", action="store_true", help="Benchmark memory usage vs height/w")
-
     args = parser.parse_args()
 
     if args.time_vs_size:
         test_time_vs_size("..\\results\\xmss_size_depend.csv")
-
     if args.time_vs_param:
         test_time_vs_param("..\\results\\xmss_param_depend.csv")
-
     if args.memory_vs_param:
         try:
             import psutil
         except ImportError:
             print("psutil не установлен! Установите через: pip install psutil")
             exit(1)
+
         test_memory_vs_param("..\\results\\xmss_memory_depend.csv")
