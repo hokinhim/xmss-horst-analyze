@@ -171,11 +171,46 @@ def test_memory_vs_param(output_csv: str) -> None:
         writer.writerows(results)
 
 
+def test_signature_size_vs_param(output_csv):
+    with tempfile.NamedTemporaryFile(delete=False) as tmpfile:
+        filepath = tmpfile.name
+    generate_file(filepath, 1024 * 1024)  # 1 MB
+
+    results = []
+    for height in HEIGHTS:
+        for k in KS:
+            if k > (1 << height):
+                continue
+            print(f"[SIGNATURE SIZE] height={height}, k={k}")
+            bundlepath = f"{filepath}_h{height}_k{k}.pkl"
+            try:
+                sign_cmd = [
+                    "python", HORST_SCRIPT, "sign", filepath,
+                    "--height", str(height),
+                    "--k", str(k),
+                    "--out", bundlepath
+                ]
+                run_command(sign_cmd)
+                sig_size = os.path.getsize(bundlepath)
+                results.append([height, k, sig_size])
+            finally:
+                if os.path.exists(bundlepath):
+                    os.remove(bundlepath)
+    os.remove(filepath)
+
+    with open(output_csv, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["Height", "K", "SignatureSizeBytes"])
+        writer.writerows(results)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Benchmark HORST Signature with memory monitoring")
     parser.add_argument("--time_vs_size", action="store_true", help="Benchmark time vs file size")
     parser.add_argument("--time_vs_param", action="store_true", help="Benchmark time vs HORST params")
     parser.add_argument("--memory_vs_param", action="store_true", help="Benchmark memory vs HORST params")
+    parser.add_argument("--signature_size_vs_param", action="store_true", help="Measure signature size vs HORST parameters")
+
     args = parser.parse_args()
 
     if args.time_vs_size:
@@ -190,3 +225,5 @@ if __name__ == "__main__":
             exit(1)
 
         test_memory_vs_param("..\\results\\horst_memory_depend.csv")
+    if args.signature_size_vs_param:
+        test_signature_size_vs_param("..\\results\\horst_signature_size_depend.csv")

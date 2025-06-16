@@ -41,6 +41,12 @@ class BenchmarkGUI(tk.Tk):
         self.fig_size = None
         self.fig_xmss = None
         self.fig_horst = None
+        self.ax_horst_sig = None
+        self.canvas_horst_sig = None
+
+        self.ax_xmss_sig = None
+        self.canvas_xmss_sig = None
+
         self.ax_size = None
         self.create_widgets()
 
@@ -75,7 +81,9 @@ class BenchmarkGUI(tk.Tk):
         self.tabs = {
             "size_comparison": ttk.Frame(self.notebook),
             "horst_params": ttk.Frame(self.notebook),
-            "xmss_params": ttk.Frame(self.notebook)
+            "xmss_params": ttk.Frame(self.notebook),
+            "horst_sigsize": ttk.Frame(self.notebook),
+            "xmss_sigsize": ttk.Frame(self.notebook)
         }
 
         for name, tab in self.tabs.items():
@@ -95,9 +103,58 @@ class BenchmarkGUI(tk.Tk):
         names = {
             "size_comparison": "Зависимость от размеров файлов",
             "horst_params": "Зависимость от параметра K в подписи HORST",
-            "xmss_params": "Зависимость от парамера W в подписи XMSS"
+            "xmss_params": "Зависимость от парамера W в подписи XMSS",
+            "horst_sigsize": "Размер подписи HORST от параметров",
+            "xmss_sigsize": "Размер подписи XMSS от параметров"
         }
         return names.get(tab_id, tab_id)
+
+    def plot_signature_size(self, scheme):
+        try:
+            if scheme == 'horst':
+                csv_file = os.path.join(RESULTS_DIR, 'horst_signature_size_depend.csv')
+                fig = self.fig_horst_sig
+                ax = self.ax_horst_sig
+                canvas = self.canvas_horst_sig
+                param_label = 'K (Раскрытые листья)'
+                label = 'HORST'
+            else:
+                csv_file = os.path.join(RESULTS_DIR, 'xmss_signature_size_depend.csv')
+                fig = self.fig_xmss_sig
+                ax = self.ax_xmss_sig
+                canvas = self.canvas_xmss_sig
+                param_label = 'W (Параметр Винтерница)'
+                label = 'XMSS'
+
+            data = defaultdict(list)
+            with open(csv_file, newline='') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    h = int(row["Height"])
+                    p = int(row.get("K") or row.get("W"))
+                    s = int(row["SignatureSizeBytes"])
+                    data[h].append((p, s))
+
+            ax.clear()
+            for h in sorted(data):
+                sorted_rows = sorted(data[h], key=lambda x: x[0])
+                ps = [x[0] for x in sorted_rows]
+                sizes = [x[1] for x in sorted_rows]
+                ax.plot(ps, sizes, marker='o', label=f"{label} h={h}")
+
+            ax.set_xlabel(param_label)
+            ax.set_ylabel("Размер подписи (байт)")
+            ax.set_title(f"{label}: Зависимость размера подписи от параметров")
+            ax.legend()
+            ax.grid(True)
+            fig.tight_layout()
+            canvas.draw()
+            self.status_var.set(f"График {label} построен успешно")
+
+        except Exception as e:
+            self.status_var.set(f"Ошибка построения графика {scheme.upper()}: {str(e)}")
+
+
 
     def create_tab_content(self, tab_id, parent):
         """
@@ -114,6 +171,10 @@ class BenchmarkGUI(tk.Tk):
                 self.fig_horst.savefig(os.path.join(RESULTS_DIR, "plots", "horst_params.png"))
             elif tab_id == "xmss_params" and self.fig_xmss:
                 self.fig_xmss.savefig(os.path.join(RESULTS_DIR, "plots", "xmss_params.png"))
+            elif tab_id == "horst_sigsize" and self.fig_horst_param:
+                self.fig_horst_param.savefig(os.path.join(RESULTS_DIR, "plots", "horst_signature_size_depend.png"))
+            elif tab_id == "xmss_sigsize" and self.fig_xmss_param:
+                self.fig_xmss_param.savefig(os.path.join(RESULTS_DIR, "plots", "xmss_signature_size_depend.png"))
             self.status_var.set("Графики сохранены в results/plots")
 
         # Создание управляющего блока
@@ -162,6 +223,22 @@ class BenchmarkGUI(tk.Tk):
             self.fig_xmss, (self.ax_xmss_time, self.ax_xmss_mem) = plt.subplots(1, 2, figsize=(10, 4))
             self.canvas_xmss = FigureCanvasTkAgg(self.fig_xmss, master=plot_frame)
             self.canvas_xmss.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        elif tab_id == "horst_sigsize":
+            ttk.Button(ctrl_frame, text="Построить график",
+                       command=lambda: self.plot_signature_size('horst')).pack(fill='x', pady=5)
+            self.fig_horst_sig, self.ax_horst_sig = plt.subplots(figsize=(8, 5))
+            self.canvas_horst_sig = FigureCanvasTkAgg(self.fig_horst_sig, master=plot_frame)
+            self.canvas_horst_sig.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+        elif tab_id == "xmss_sigsize":
+            ttk.Button(ctrl_frame, text="Построить график",
+                       command=lambda: self.plot_signature_size('xmss')).pack(fill='x', pady=5)
+            self.fig_xmss_sig, self.ax_xmss_sig = plt.subplots(figsize=(8, 5))
+            self.canvas_xmss_sig = FigureCanvasTkAgg(self.fig_xmss_sig, master=plot_frame)
+            self.canvas_xmss_sig.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+
+
 
     def start_benchmark(self, benchmark_type):
         """
