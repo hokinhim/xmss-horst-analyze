@@ -195,12 +195,47 @@ def test_time_vs_param(output_csv):
         writer.writerow(["Height", "W", "SignTimeSeconds", "VerifyTimeSeconds"])
         writer.writerows(results)
 
+def test_signature_size_vs_param(output_csv):
+    with tempfile.NamedTemporaryFile(delete=False) as tmpfile:
+        filepath = tmpfile.name
+    generate_file(filepath, 1024 * 1024)  # 1 MB
+
+    results = []
+    for height in HEIGHTS:
+        for w in WS:
+            print(f"[SIGNATURE SIZE] height={height}, w={w}")
+            sigpath = filepath + ".sig"
+            cleanup_keys()
+            try:
+                sign_cmd = [
+                    "python", XMSS_SCRIPT,
+                    "--action", "sign",
+                    "--file", filepath,
+                    "--height", str(height),
+                    "--w", str(w)
+                ]
+                run_command(sign_cmd)
+                sig_size = os.path.getsize(sigpath)
+                results.append([height, w, sig_size])
+            finally:
+                if os.path.exists(sigpath):
+                    os.remove(sigpath)
+                cleanup_keys()
+    os.remove(filepath)
+
+    with open(output_csv, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["Height", "W", "SignatureSizeBytes"])
+        writer.writerows(results)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Benchmark XMSS Signature")
     parser.add_argument("--time_vs_size", action="store_true", help="Benchmark vs file size")
     parser.add_argument("--time_vs_param", action="store_true", help="Benchmark vs height/w")
     parser.add_argument("--memory_vs_param", action="store_true", help="Benchmark memory usage vs height/w")
+    parser.add_argument("--signature_size_vs_param", action="store_true", help="Measure signature size vs XMSS parameters")
+
     args = parser.parse_args()
 
     if args.time_vs_size:
@@ -215,3 +250,6 @@ if __name__ == "__main__":
             exit(1)
 
         test_memory_vs_param("..\\results\\xmss_memory_depend.csv")
+    if args.signature_size_vs_param:
+        test_signature_size_vs_param("..\\results\\xmss_signature_size_depend.csv")
+
