@@ -102,10 +102,10 @@ class BenchmarkGUI(tk.Tk):
         """
         names = {
             "size_comparison": "Зависимость от размеров файлов",
-            "horst_params": "Зависимость от параметра K в подписи HORST",
-            "xmss_params": "Зависимость от парамера W в подписи XMSS",
-            "horst_sigsize": "Размер подписи HORST от параметров",
-            "xmss_sigsize": "Размер подписи XMSS от параметров"
+            "horst_params": "Зависимость скорости работы и использования памяти подписи HORST от параметров",
+            "xmss_params": "Зависимость скорости работы и использования памяти подписи XMSS от параметров",
+            "horst_sigsize": "Зависимость размера подписи HORST от параметров",
+            "xmss_sigsize": "Зависимость размера подписи XMSS от параметров"
         }
         return names.get(tab_id, tab_id)
 
@@ -140,11 +140,11 @@ class BenchmarkGUI(tk.Tk):
                 sorted_rows = sorted(data[h], key=lambda x: x[0])
                 ps = [x[0] for x in sorted_rows]
                 sizes = [x[1] for x in sorted_rows]
-                ax.plot(ps, sizes, marker='o', label=f"{label} h={h}")
+                ax.plot(ps, sizes, marker='o', label=f"h={h}")
 
             ax.set_xlabel(param_label)
-            ax.set_ylabel("Размер подписи (байт)")
-            ax.set_title(f"{label}: Зависимость размера подписи от параметров")
+            ax.set_ylabel("Размер подписи, Байт")
+            ax.set_title(f"Сравнение размера подписи {label} от параметров")
             ax.legend()
             ax.grid(True)
             fig.tight_layout()
@@ -153,8 +153,6 @@ class BenchmarkGUI(tk.Tk):
 
         except Exception as e:
             self.status_var.set(f"Ошибка построения графика {scheme.upper()}: {str(e)}")
-
-
 
     def create_tab_content(self, tab_id, parent):
         """
@@ -171,10 +169,10 @@ class BenchmarkGUI(tk.Tk):
                 self.fig_horst.savefig(os.path.join(RESULTS_DIR, "plots", "horst_params.png"))
             elif tab_id == "xmss_params" and self.fig_xmss:
                 self.fig_xmss.savefig(os.path.join(RESULTS_DIR, "plots", "xmss_params.png"))
-            elif tab_id == "horst_sigsize" and self.fig_horst_param:
-                self.fig_horst_param.savefig(os.path.join(RESULTS_DIR, "plots", "horst_signature_size_depend.png"))
-            elif tab_id == "xmss_sigsize" and self.fig_xmss_param:
-                self.fig_xmss_param.savefig(os.path.join(RESULTS_DIR, "plots", "xmss_signature_size_depend.png"))
+            elif tab_id == "horst_sigsize" and self.fig_horst_sig:
+                self.fig_horst_sig.savefig(os.path.join(RESULTS_DIR, "plots", "horst_signature_size_depend.png"))
+            elif tab_id == "xmss_sigsize" and self.fig_xmss_sig:
+                self.fig_xmss_sig.savefig(os.path.join(RESULTS_DIR, "plots", "xmss_signature_size_depend.png"))
             self.status_var.set("Графики сохранены в results/plots")
 
         # Создание управляющего блока
@@ -223,9 +221,13 @@ class BenchmarkGUI(tk.Tk):
             self.fig_xmss, (self.ax_xmss_time, self.ax_xmss_mem) = plt.subplots(1, 2, figsize=(10, 4))
             self.canvas_xmss = FigureCanvasTkAgg(self.fig_xmss, master=plot_frame)
             self.canvas_xmss.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
         elif tab_id == "horst_sigsize":
-            ttk.Button(ctrl_frame, text="Построить график",
+            ttk.Button(ctrl_frame, text="Обновить график",
                        command=lambda: self.plot_signature_size('horst')).pack(fill='x', pady=5)
+            ttk.Button(ctrl_frame, text="Сохранить график",
+                       command=save_current_plots).pack(fill='x', pady=5)
+
             self.fig_horst_sig, self.ax_horst_sig = plt.subplots(figsize=(8, 5))
             self.canvas_horst_sig = FigureCanvasTkAgg(self.fig_horst_sig, master=plot_frame)
             self.canvas_horst_sig.get_tk_widget().pack(fill=tk.BOTH, expand=True)
@@ -233,6 +235,9 @@ class BenchmarkGUI(tk.Tk):
         elif tab_id == "xmss_sigsize":
             ttk.Button(ctrl_frame, text="Построить график",
                        command=lambda: self.plot_signature_size('xmss')).pack(fill='x', pady=5)
+            ttk.Button(ctrl_frame, text="Сохранить график",
+                       command=save_current_plots).pack(fill='x', pady=5)
+
             self.fig_xmss_sig, self.ax_xmss_sig = plt.subplots(figsize=(8, 5))
             self.canvas_xmss_sig = FigureCanvasTkAgg(self.fig_xmss_sig, master=plot_frame)
             self.canvas_xmss_sig.get_tk_widget().pack(fill=tk.BOTH, expand=True)
@@ -415,10 +420,9 @@ class BenchmarkGUI(tk.Tk):
             ax.plot(k_vals, sign_times, 'o-', label=f'Формирование подписи (h={param})')
             ax.plot(k_vals, verify_times, 's--', label=f'Проверка подписи (h={param})')
 
-        param_name = "K" if scheme == 'horst' else 'W'
         ax.set_xlabel('K (Раскрытые листья)' if scheme == 'horst' else 'W (Параметр Винтерница)')
         ax.set_ylabel('Время, с')
-        ax.set_title(f'Сравнение времени формирования/проверки подписи {scheme.upper()} от параметра {param_name}')
+        ax.set_title(f'Сравнение времени формирования/проверки подписи {scheme.upper()} от параметров')
         ax.legend()
         ax.grid(True)
 
@@ -443,10 +447,9 @@ class BenchmarkGUI(tk.Tk):
 
             ax.plot(k_vals, mem_vals, 'o-', label=f'h={param}')
 
-        param_name = "K" if scheme == 'horst' else 'W'
         ax.set_xlabel('K (Раскрытые Листья)' if scheme == 'horst' else 'W (Параметр Винтерница)')
         ax.set_ylabel('Память, МБайт')
-        ax.set_title(f'Сравнение использования памяти подписью {scheme.upper()} от параметра {param_name}')
+        ax.set_title(f'Сравнение использования памяти подписью {scheme.upper()} от параметров')
         ax.legend()
         ax.grid(True)
 
